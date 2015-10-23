@@ -48,12 +48,12 @@ middleware on the stack.
 
 ```js
 router.use(function (req, res, next) {
-  // middleware 1
+  // called first
   next()
 })
 
 router.use(function (req, res, next) {
-  // middleware 2
+  // called second
   next()
 })
 ```
@@ -80,6 +80,58 @@ router.use(function (req, res, next) {
 router.use(function (err, req, res, next) {
   // called second
   console.error(err.stack)
+})
+```
+
+### Promises in middleware
+
+The router supports some basic ES6 Promise functionality in
+middleware. If a promise is rejected, `next()` will automatically
+be called with an error.
+
+Unless you reject the promise, `next()` must still be called.
+
+```js
+router.use(function (req, res, next) {
+  // called first
+  return new Promise(function (resolve, reject) {
+    resolve()
+    next()
+  })
+})
+
+router.use(function (req, res, next) {
+  // called second
+  return new Promise(function (resolve, reject) {
+    reject(new Error('Something exploded'))
+  })
+})
+
+router.use(function (error, req, res, next) {
+  // called third
+  console.error(err.stack)
+})
+```
+
+When you call `next()` it will also return a promise that resolves
+when the middleware stack is exhausted. The `next()` promise is also
+rejected when there is an error.
+
+```js
+router.use(function (req, res, next) {
+  // called first
+  var start = new Date()
+  next().then(function () {
+    // called third
+    var ms = new Date() - start
+    console.log('Response time %s milliseconds', ms)
+  })
+})
+
+router.use(function (req, res, next) {
+  // called second
+  res.end('done')
+  next()
 })
 ```
 
@@ -115,7 +167,7 @@ router.use(function (req, res, next) {
   // the request will stall if this is not called
   next()
 
-  // note: you should NOT call `next` if you have begun writing to the response
+  // note: be careful calling `next` if you have begun writing to the response
 })
 ```
 
