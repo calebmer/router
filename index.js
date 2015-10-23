@@ -21,6 +21,10 @@ var parseUrl = require('parseurl')
 var Route = require('./lib/route')
 var setPrototypeOf = require('setprototypeof')
 
+var Promise = typeof global.Promise == 'function' ?
+  global.Promise :
+  require('es6-promise').Promise
+
 /**
  * Module variables.
  * @private
@@ -186,6 +190,17 @@ Router.prototype.handle = function handle(req, res, callback) {
   req.baseUrl = parentUrl
   req.originalUrl = req.originalUrl || req.url
 
+  // promise that resolves when either the next chain finishes, or a response is sent
+  var requestComplete = new Promise(function (resolve, reject) {
+    done = wrap(done, function (fn, err) {
+      if (err) {
+        reject(err)
+      }
+      resolve()
+      defer(fn, err)
+    })
+  })
+
   next()
 
   function next(err) {
@@ -209,14 +224,15 @@ Router.prototype.handle = function handle(req, res, callback) {
     // no more matching layers
     if (idx >= stack.length) {
       defer(done, layerError)
-      return
+      return requestComplete
     }
 
     // get pathname of request
     var path = getPathname(req)
 
     if (path == null) {
-      return done(layerError)
+      done(layerError)
+      return requestComplete
     }
 
     // find next matching layer
@@ -266,7 +282,8 @@ Router.prototype.handle = function handle(req, res, callback) {
 
     // no match
     if (match !== true) {
-      return done(layerError)
+      done(layerError)
+      return requestComplete
     }
 
     // store route for dispatch on change
@@ -292,6 +309,8 @@ Router.prototype.handle = function handle(req, res, callback) {
 
       trim_prefix(layer, layerError, layerPath, path)
     })
+
+    return requestComplete
   }
 
   function trim_prefix(layer, layerError, layerPath, path) {
