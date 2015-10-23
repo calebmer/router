@@ -27,7 +27,7 @@ router.get('/', function (req, res) {
   res.end('Hello World!')
 })
 
-var server = http.createServer(function(req, res) {
+var server = http.createServer(function (req, res) {
   router(req, res, finalhandler(req, res))
 })
 
@@ -37,6 +37,51 @@ server.listen(3000)
 This module is currently an extracted version from the Express project,
 but with the main change being it can be used with a plain `http.createServer`
 object or other web frameworks by removing Express-specific API calls.
+
+## Middleware
+
+This router is based on [connect](https://www.npmjs.com/package/connect)-style
+middleware. The middleware is added as a "stack" and a request will execute
+each one. Middleware is just a function which takes a request object (`req`),
+a response object (`res`) and a `next()` function which will call the next
+middleware on the stack.
+
+```js
+router.use(function (req, res, next) {
+  // middleware 1
+  next()
+})
+
+router.use(function (req, res, next) {
+  // middleware 2
+  next()
+})
+```
+
+The `use` function is just one way to add middleware to the stack.
+
+### Error handling middleware
+
+When an error is thrown in your middleware, router will look for
+special error handling middleware. Error handling middleware
+differs from normal middleware in that it takes four parameters,
+the standard `req`, `res`, and `next` along with an added `err`
+parameter.
+
+To throw an error, either use the `throw` language construct,
+or pass an error object to the `next()` function.
+
+```js
+router.use(function (req, res, next) {
+  // called first
+  next(new Error('Something exploded'))
+})
+
+router.use(function (err, req, res, next) {
+  // called second
+  console.error(err.stack)
+})
+```
 
 ## Router(options)
 
