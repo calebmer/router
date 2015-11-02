@@ -304,7 +304,7 @@ Router.prototype.handle = function handle(req, res, callback) {
       }
 
       if (route) {
-        return layer.handle_request(req, res, next)
+        return layer.handle_request(req, res, once(next))
       }
 
       trim_prefix(layer, layerError, layerPath, path)
@@ -343,9 +343,9 @@ Router.prototype.handle = function handle(req, res, callback) {
     debug('%s %s : %s', layer.name, layerPath, req.originalUrl)
 
     if (layerError) {
-      layer.handle_error(layerError, req, res, next)
+      layer.handle_error(layerError, req, res, once(next))
     } else {
-      layer.handle_request(req, res, next)
+      layer.handle_request(req, res, once(next))
     }
   }
 }
@@ -423,7 +423,9 @@ Router.prototype.process_params = function process_params(layer, called, req, re
 
   // single param callbacks
   function paramCallback(err) {
+    var next = once(paramCallback)
     var fn = paramCallbacks[paramIndex++]
+    var result
 
     // store updated value
     paramCalled.value = req.params[key.name]
@@ -438,9 +440,16 @@ Router.prototype.process_params = function process_params(layer, called, req, re
     if (!fn) return param()
 
     try {
-      fn(req, res, paramCallback, paramVal, key.name)
-    } catch (e) {
-      paramCallback(e)
+      result = fn(req, res, next, paramVal, key.name)
+    } catch (err) {
+      return next(err)
+    }
+
+    if (result != null && typeof result.then === 'function') {
+      result.then(
+        null,
+        function onRejected(error) { next(error || new Error('Promise rejected with falsey value')) }
+      )
     }
   }
 
@@ -750,5 +759,28 @@ function wrap(old, fn) {
     }
 
     fn.apply(this, args)
+  }
+}
+
+/**
+ * Makes next function only callable without an error parameter once
+ *
+ * @param {function} next
+ * @return {function}
+ * @private
+ */
+
+function once(fn) {
+  var called = false
+
+  return function (err) {
+    if (!err) {
+      if (called) {
+        throw new Error('next() cannot be called twice')
+      }
+      called = true
+    }
+
+    return fn.call(this, err)
   }
 }

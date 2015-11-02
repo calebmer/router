@@ -17,14 +17,22 @@ describe('Promise', function () {
     var router = Router()
     var server = createServer(router)
 
+    router.use(createHitHandle(1))
+
     router.use(function (req, res) {
       return new Promise(function (resolve, reject) {
         reject(new Error('Happy error'))
       })
     })
 
+    router.use(createHitHandle(2))
+    router.use(createErrorHitHandle(3))
+
     request(server)
     .get('/')
+    .expect(shouldHitHandle(1))
+    .expect(shouldNotHitHandle(2))
+    .expect(shouldHitHandle(3))
     .expect(500, done)
   })
 
@@ -86,6 +94,34 @@ describe('Promise', function () {
     .expect(shouldHitHandle(2))
     .expect(shouldHitHandle(3))
     .expect(200, done)
+  })
+
+  it('can be used in param functions', function (done) {
+    var router = Router()
+    var server = createServer(router)
+
+    router.use(createHitHandle(1))
+
+    router.param('param', function () {
+      return new Promise(function (resolve, reject) {
+        reject(new Error('Happy error'))
+      })
+    })
+
+    router.use(createHitHandle(2))
+
+    router.get('/:param', function (req, res) {
+      res.end('yay')
+    })
+
+    router.use(createErrorHitHandle(3))
+
+    request(server)
+    .get('/asd')
+    .expect(shouldHitHandle(1))
+    .expect(shouldHitHandle(2))
+    .expect(shouldHitHandle(3))
+    .expect(500, done)
   })
 
   describe('from next', function () {
